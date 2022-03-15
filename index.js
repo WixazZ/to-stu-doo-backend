@@ -2,10 +2,19 @@ const express = require('express')
 const app = express()
 const port = 3000
 const jwt = require('jsonwebtoken')
+var cors = require('cors')
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
 const bcrypt = require('bcrypt');
 const saltRounds = 10;
+
+var corsOptions = {
+    origin: 'http://localhost:8080',
+    optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+}
+
+
+app.options('*', cors(corsOptions))
 
 const mysql = require('mysql');
 const con = mysql.createConnection({
@@ -25,7 +34,13 @@ function createToken(username, password) {
 }
 
 
-app.post('/signin',(req, res) => {
+app.use(function (req, res, next) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    next();
+});
+
+app.post('/signin',cors(corsOptions),(req, res) => {
 
 
     if (req.body.username, req.body.password){
@@ -41,19 +56,19 @@ app.post('/signin',(req, res) => {
                             if (err) throw err;
                         })
 
-                        res.status(200).json({
+                        res.status(400).json({
                             message: 'Successful sign in',
                             token: token
                         })
                     } else {
-                        res.send(401).json({
+                        res.send(200).json({
                             message: 'Wrong password'
                         })
                     }
                 });
 
             } else {
-                res.status(401).json({
+                res.status(200).json({
                     message: 'Wrong username'
                 })
             }
@@ -89,13 +104,14 @@ function checkRegex(username, password, mail){
     }
 }
 
-app.post('/signup', (req, res) => {
-    if (req.body.username, req.body.password, req.body.mail) {
-        const regex = checkRegex(req.body.username, req.body.password, req.body.mail);
+app.post('/signup',cors(corsOptions), (reqUp, res) => {
+    console.log(reqUp.body)
+    if (reqUp.body.username, reqUp.body.password, reqUp.body.mail) {
+        const regex = checkRegex(reqUp.body.username, reqUp.body.password, reqUp.body.mail);
         if (regex === true){
             let id_Person;
             //chech if mail arleady exist in database
-            con.query("SELECT * FROM Person WHERE mail = ?", [req.body.mail], function (err, mailResult, fields) {
+            con.query("SELECT * FROM Person WHERE mail = ?", [reqUp.body.mail], function (err, mailResult, fields) {
                 if (err) throw err;
                 if (mailResult.length > 0){
                     res.status(200).send({
@@ -103,23 +119,23 @@ app.post('/signup', (req, res) => {
                     });
                 } else {
                     //check if username arleady exist in database
-                    con.query("SELECT * FROM Identification WHERE Username = ?", [req.body.username], function (err, userResult, fields) {
+                    con.query("SELECT * FROM Identification WHERE Username = ?", [reqUp.body.username], function (err, userResult, fields) {
                         if (err) throw err;
                         if (userResult.length > 0){
                             res.status(200).send({
                                 message: 'Username already exist'
                             })
                         } else{
-                            con.query("INSERT INTO Person(mail) VALUES (?)", [req.body.mail], function (err, iDresult, fields) {
+                            con.query("INSERT INTO Person(mail) VALUES (?)", [reqUp.body.mail], function (err, iDresult, fields) {
                                 if (err) throw err;
                                 id_Person = iDresult.insertId;
                             });
 
-                            bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
-                                let token = createToken(req.body.username, req.body.password);
-                                con.query("INSERT INTO Identification (Username, Password, Token, Id_Person) VALUES (?, ?, ?, ?)", [req.body.username, hash, token, id_Person], function (err, inserIdentificationResult, fields) {
+                            bcrypt.hash(reqUp.body.password, saltRounds, function(err, hash) {
+                                let token = createToken(reqUp.body.username, reqUp.body.password);
+                                con.query("INSERT INTO Identification (Username, Password, Token, Id_Person) VALUES (?, ?, ?, ?)", [reqUp.body.username, hash, token, id_Person], function (err, inserIdentificationResult, fields) {
                                     if (err) throw err;
-                                    res.status(200).json({
+                                    res.status(400).json({
                                         message: 'Successful sign up',
                                         token : token
                                     })
@@ -143,7 +159,7 @@ app.post('/signup', (req, res) => {
     }
 })
 
-app.post('/studoolist', (req, res) => {
+app.post('/studoolist',cors(corsOptions), (req, res) => {
     if (req.body.token) {
 
         //check if token is database
@@ -171,12 +187,12 @@ app.post('/studoolist', (req, res) => {
                             })
                         }
 
-                        res.status(200).json({
+                        res.status(400).json({
                             message: 'Successful',
                             studoolist : studoolist
                         })
                     } else {
-                        res.status(200).json({
+                        res.status(300).json({
                             message: 'No studool'
                         })
                     }
@@ -197,7 +213,7 @@ app.post('/studoolist', (req, res) => {
 })
 
 
-app.post('/studoolist/:name', (req, res) => {
+app.post('/studoolist/:name',cors(corsOptions), (req, res) => {
     if (req.body.token){
         con.query("SELECT Id_Person FROM Identification WHERE Token = ?", [req.body.token], function (err, tokenResult, fields) {
             if (err) {
@@ -226,12 +242,12 @@ app.post('/studoolist/:name', (req, res) => {
                                     })
                                 }
 
-                                res.status(200).json({
+                                res.status(400).json({
                                     message: 'Successful',
                                     task : task
                                 })
                             } else {
-                                res.status(200).json({
+                                res.status(300).json({
                                     message: 'No task'
                                 })
                             }
