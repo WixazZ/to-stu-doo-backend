@@ -19,6 +19,7 @@ app.options('*', cors(corsOptions))
 const mysql = require('mysql');
 const con = mysql.createConnection({
     host: "localhost",
+    port: "3306",
     user: "root",
     password: "alexpara",
     database: "tostudoo"
@@ -87,7 +88,7 @@ app.post('/signin',cors(corsOptions),(req, res) => {
 function checkRegex(username, password, mail){
     // check regex of username and password and mail
     const regexUsername = /^[a-zA-Z0-9]{3,20}$/;
-    const regexPassword = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[.:/(){}@$!%*?&])[A-Za-z\d.:/(){}@$!%*?&]{8,50}$/;
+    const regexPassword = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,50}$/;
     const regexMail = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
     if(regexUsername.test(username)){
         if (regexPassword.test(password)){
@@ -105,7 +106,6 @@ function checkRegex(username, password, mail){
 }
 
 app.post('/signup',cors(corsOptions), (reqUp, res) => {
-    console.log(reqUp.body)
     if (reqUp.body.username, reqUp.body.password, reqUp.body.mail) {
         const regex = checkRegex(reqUp.body.username, reqUp.body.password, reqUp.body.mail);
         if (regex === true){
@@ -227,35 +227,51 @@ app.post('/studoolist/:name',cors(corsOptions), (req, res) => {
                         console.error(err);
                     }
                     if (studoolistResult.length >0){
-                        con.query("SELECT * FROM Task WHERE Id_StudooList = ?", [studoolistResult[0].Id_StudooList], function (err, tokenResult, fields) {
-                            if (err) throw err;
-                            if (tokenResult.length > 0){
-                                let task = [
-                                ]
+                        if(req.body.delete){
+                            con.query("DELETE FROM StudooList WHERE Id_StudooList = ?", [studoolistResult[0].Id_StudooList], function (err, studoolistResult, fields) {
+                                if (err) {
+                                    console.log(tokenResult);
+                                    console.error(err);
+                                }
+                                res.status(400).json({
+                                    message: 'Successful delete'
+                                })
+                            });
+                        }else {
+                            con.query("SELECT * FROM Task WHERE Id_StudooList = ?", [studoolistResult[0].Id_StudooList], function (err, tokenResult, fields) {
+                                if (err) throw err;
+                                if (tokenResult.length > 0){
+                                    let task = [
+                                    ]
 
-                                for(let i = 0; i < tokenResult.length; i++){
-                                    task.push({
-                                        id: tokenResult[i].Id_Task,
-                                        name: tokenResult[i].Name,
-                                        content: tokenResult[i].Content,
-                                        creationDate : tokenResult[i].CreationDate
+                                    for(let i = 0; i < tokenResult.length; i++){
+                                        task.push({
+                                            id: tokenResult[i].Id_Task,
+                                            name: tokenResult[i].Name,
+                                            content: tokenResult[i].Content,
+                                            creationDate : tokenResult[i].CreationDate
+                                        })
+                                    }
+
+                                    res.status(400).json({
+                                        message: 'Successful',
+                                        task : task
+                                    })
+                                } else {
+                                    res.status(300).json({
+                                        message: 'No task'
                                     })
                                 }
-
-                                res.status(400).json({
-                                    message: 'Successful',
-                                    task : task
-                                })
-                            } else {
-                                res.status(300).json({
-                                    message: 'No task'
-                                })
-                            }
-                        });
+                            });
+                        }
                     } else {
-                        res.status(200).send({
-                            message: 'Task not found'
-                        })
+                        //send body.name to the database
+                        con.query("INSERT INTO StudooList (Name, Id_Person) VALUES (?, ?)", [req.params.name, tokenResult[0].Id_Person], function (err, result, fields) {
+                            if (err) throw err;
+                            res.status(200).json({
+                                message: 'Successful'
+                            })
+                        });
                     }
 
                 });
@@ -272,5 +288,144 @@ app.post('/studoolist/:name',cors(corsOptions), (req, res) => {
     }
 
 })
+
+app.post('/task',cors(corsOptions), (req, res) => {
+    if (req.body.token) {
+        con.query("SELECT Id_Person FROM Identification WHERE Token = ?", [req.body.token], function (err, tokenResult, fields) {
+            if (err) {
+                console.log(tokenResult);
+                console.error(err);
+            }
+            if (tokenResult.length > 0){
+                con.query("SELECT Id_StudooList FROM StudooList WHERE name = ?", [req.body.name], function (err, studoolistResult, fields) {
+                    if (err) {
+                        console.log(tokenResult);
+                        console.error(err);
+                    }
+                    if (studoolistResult.length > 0){
+                        con.query("SELECT * FROM Task WHERE Id_StudooList = ?", [studoolistResult[0].Id_StudooList], function (err, taskResult, fields) {
+                            if (err) {
+                                console.log(tokenResult);
+                                console.error(err);
+                            }
+                            if (taskResult.length > 0){
+                                let task = [
+                                    ]
+                                for(let i = 0; i < taskResult.length; i++){
+                                    task.push({
+                                        id: taskResult[i].Id_Task,
+                                        name: taskResult[i].Name,
+                                        content: taskResult[i].Content,
+                                        status: taskResult[i].Status
+                                    })
+                                }
+                                res.status(300).json({
+                                    message: 'Successful',
+                                    tasks : task
+                                })
+                            } else {
+                                res.status(300).json({
+                                    message: 'No studool'
+                                })
+                            }
+                        });
+
+                    } else {
+                        res.status(300).json({
+                            message: 'No studool'
+                        })
+                    }
+                })
+            }
+        });
+    }
+});
+
+app.post('/task/send',cors(corsOptions), (req, res) => {
+
+    if (req.body.token) {
+        con.query("SELECT Id_Person FROM Identification WHERE Token = ?", [req.body.token], function (err, tokenResult, fields) {
+            if (err) {
+                console.log(tokenResult);
+                console.error(err);
+            }
+            if (tokenResult.length > 0){
+                console.log(req.body.name)
+                con.query("SELECT Id_StudooList FROM StudooList WHERE name = ?", [req.body.name], function (err, studoolistResult, fields) {
+                    if (err) {
+                        console.log(tokenResult);
+                        console.error(err);
+                    }
+                    if (studoolistResult.length > 0){
+                        con.query("INSERT INTO Task (Name, Content, Status, Id_StudooList) VALUES (?, ?, ?, ?)", [req.body.nameTask, req.body.contentTask, 0, studoolistResult[0].Id_StudooList], function (err, taskResult, fields) {
+                            if (err) throw err;
+                            res.status(200).json({
+                                message: 'Successful'
+                            })
+
+                        });
+
+                    } else {
+                        res.status(300).json({
+                            message: 'No studool'
+                        })
+                    }
+                })
+            }
+        });
+    }
+});
+
+app.post('/task/update',cors(corsOptions), (req, res) => {
+
+    if (req.body.token) {
+        con.query("SELECT Id_Person FROM Identification WHERE Token = ?", [req.body.token], function (err, tokenResult, fields) {
+            if (err) {
+                console.log(tokenResult);
+                console.error(err);
+            }
+            if (tokenResult.length > 0){
+                console.log(req.body.name)
+                con.query("UPDATE Task SET Status = ? WHERE Id_Task = ?", [req.body.status ,req.body.id], function (err, studoolistResult, fields) {
+                    if (err) {
+                        console.log(tokenResult);
+                        console.error(err);
+
+                    } else {
+                        res.status(300).json({
+                            message: 'success'
+                        })
+                    }
+                })
+            }
+        });
+    }
+});
+
+app.post('/task/delete',cors(corsOptions), (req, res) => {
+
+    if (req.body.token) {
+        con.query("SELECT Id_Person FROM Identification WHERE Token = ?", [req.body.token], function (err, tokenResult, fields) {
+            if (err) {
+                console.log(tokenResult);
+                console.error(err);
+            }
+            if (tokenResult.length > 0){
+                console.log(req.body.name)
+                con.query("delete from Task WHERE Id_Task = ?", [req.body.id], function (err, studoolistResult, fields) {
+                    if (err) {
+                        console.log(tokenResult);
+                        console.error(err);
+
+                    } else {
+                        res.status(300).json({
+                            message: 'success'
+                        })
+                    }
+                })
+            }
+        });
+    }
+});
 
 app.listen(port, () => console.log(`App listening on port localhost:${port}/!`))
